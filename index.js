@@ -2,6 +2,7 @@ const express = require("express");
 const mammoth = require("mammoth");
 const multer = require("multer");
 const fileSystem = require("fs");
+const pdfParse = require("pdf-parse");
 
 const app = express();
 const port = 3000;
@@ -22,12 +23,11 @@ const upload = multer({ storage: storage });
 
 app.post("/extract-text", upload.single("file"), async (req, res) => {
   const file = req.file;
-  console.log("file", file);
-  const extension = file.originalname.split(".").pop();
 
   if (!file) {
     return res.status(400).send({ error: "Word file is required" });
   }
+  const extension = file.originalname.split(".").pop();
 
   const filePath = req.file.path; // Get the path of the uploaded file
 
@@ -42,33 +42,10 @@ app.post("/extract-text", upload.single("file"), async (req, res) => {
     }
   } else if (extension == "pdf") {
     try {
-      const module = await import("pdfjs-dist/legacy/build/pdf.mjs");
-      var pdf = module.getDocument(filePath);
-      pdf.promise.then(async function (data) {
-        var maxPages = data.numPages;
-        var countPromises = []; // collecting all page promises
-        for (var j = 1; j <= maxPages; j++) {
-          var page = data.getPage(j);
-
-          var txt = "";
-          countPromises.push(
-            page.then(function (page) {
-              var textContent = page.getTextContent();
-              return textContent.then(function (text) {
-                return text.items
-                  .map(function (s) {
-                    return s.str;
-                  })
-                  .join(" "); // value page text
-              });
-            })
-          );
-        }
-        Promise.all(countPromises).then(function (texts) {
-          res.send({ text: "Extracted text from PDF", data: texts });
-          fileSystem.unlinkSync(filePath); // Delete the file after extracting text
-        });
-      });
+      const dataBuffer = fileSystem.readFileSync(filePath);
+      const pdfData = await pdfParse(dataBuffer);
+      res.send({ text: "Extracted text from PDF", data: pdfData.text });
+      fileSystem.unlinkSync(filePath); // Delete the file after extracting text
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
       res.status(500).send({ error: "Failed to extract text from PDF" });
@@ -99,7 +76,7 @@ app.get("/uploaded-audios", (req, res) => {
     }
     res.send(files);
   });
-} );
+});
 
 app.get("/", (req, res) => {
   res.send("Hello World");
