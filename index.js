@@ -1,5 +1,5 @@
 const express = require("express");
-var mammoth = require("mammoth");
+const mammoth = require("mammoth");
 const multer = require("multer");
 const fileSystem = require("fs");
 
@@ -21,9 +21,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 app.post("/extract-text", upload.single("file"), async (req, res) => {
-  //handle file upload
   const file = req.file;
-  console.log("file", file)
+  console.log("file", file);
   const extension = file.originalname.split(".").pop();
 
   if (!file) {
@@ -46,7 +45,6 @@ app.post("/extract-text", upload.single("file"), async (req, res) => {
       const module = await import("pdfjs-dist/legacy/build/pdf.mjs");
       var pdf = module.getDocument(filePath);
       pdf.promise.then(async function (data) {
-        // number of pages
         var maxPages = data.numPages;
         var countPromises = []; // collecting all page promises
         for (var j = 1; j <= maxPages; j++) {
@@ -55,10 +53,8 @@ app.post("/extract-text", upload.single("file"), async (req, res) => {
           var txt = "";
           countPromises.push(
             page.then(function (page) {
-              // add page promise
               var textContent = page.getTextContent();
               return textContent.then(function (text) {
-                // return content promise
                 return text.items
                   .map(function (s) {
                     return s.str;
@@ -68,10 +64,7 @@ app.post("/extract-text", upload.single("file"), async (req, res) => {
             })
           );
         }
-        // Wait for all pages and join text
         Promise.all(countPromises).then(function (texts) {
-          // texts = texts.join(""); // we join all texts from all pages
-          // console.log(texts);
           res.send({ text: "Extracted text from PDF", data: texts });
           fileSystem.unlinkSync(filePath); // Delete the file after extracting text
         });
@@ -85,10 +78,32 @@ app.post("/extract-text", upload.single("file"), async (req, res) => {
   }
 });
 
+// New endpoint for uploading audio files
+app.post("/upload-audio", upload.single("audio"), (req, res) => {
+  const file = req.file;
+  if (!file) {
+    return res.status(400).send({ error: "Audio file is required" });
+  }
+
+  // Respond with the URL of the uploaded audio file
+  res.send({ url: `http://localhost:${port}/uploads/${file.filename}` });
+});
+
+// get all uploaded audios
+
+app.get("/uploaded-audios", (req, res) => {
+  const directoryPath = "./uploads";
+  fileSystem.readdir(directoryPath, function (err, files) {
+    if (err) {
+      return console.log("Unable to scan directory: " + err);
+    }
+    res.send(files);
+  });
+} );
+
 app.get("/", (req, res) => {
   res.send("Hello World");
-}
-);
+});
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
