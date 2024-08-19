@@ -3,13 +3,14 @@ const mammoth = require("mammoth");
 const multer = require("multer");
 const fileSystem = require("fs");
 const pdfParse = require("pdf-parse");
-const cors = require("cors");  // Import the cors package
+const cors = require("cors");
 
 const app = express();
 const port = 3000;
 
-app.use(express.json());
-app.use(cors());  // Enable CORS for all routes
+app.use(express.json({ limit: '100mb' })); // Increase the JSON body size limit
+app.use(express.urlencoded({ limit: '100mb', extended: true })); // Increase URL-encoded body size limit
+app.use(cors());
 
 // Serve the 'uploads' directory as static files
 app.use('/uploads', express.static('uploads'));
@@ -24,7 +25,11 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage: storage });
+// Increase the file size limit for multer
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 100 * 1024 * 1024 } // Set file size limit to 100MB
+});
 
 app.post("/extract-text", upload.single("file"), async (req, res) => {
   const file = req.file;
@@ -71,7 +76,6 @@ app.post("/upload-audio", upload.single("audio"), (req, res) => {
   res.send({ url: `https://helper.screnpla.com/uploads/${file.filename}` });
 });
 
-
 app.delete("/delete-audio/:filename", (req, res) => {
   const filename = req.params.filename;
   const filePath = `./uploads/${filename}`;
@@ -84,7 +88,6 @@ app.delete("/delete-audio/:filename", (req, res) => {
     res.send({ message: "File deleted successfully" });
   });
 });
-
 
 // Get all uploaded audios
 app.get("/uploaded-audios", (req, res) => {
