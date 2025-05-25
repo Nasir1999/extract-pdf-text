@@ -4,9 +4,105 @@ const multer = require("multer");
 const fileSystem = require("fs");
 const pdfParse = require("pdf-parse");
 const cors = require("cors");
+const { Server } = require("socket.io");
+const http = require("http");
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
 const port = 3000;
+
+// Socket.IO maps and variables
+const emailToSocketIdMap = new Map();
+const socketidToEmailMap = new Map();
+const onlineUsers = new Map();
+
+// Socket.IO connection handling
+io.on("connection", (socket) => {
+  console.log(`Socket Connected`, socket.id);
+  
+  socket.on("room:join", (data) => {
+    const { email, room } = data;
+    emailToSocketIdMap.set(email, socket.id);
+    socketidToEmailMap.set(socket.id, email);
+    io.to(room).emit("user:joined", { email, id: socket.id });
+    socket.join(room);
+    io.to(socket.id).emit("room:join", data);
+  });
+
+  socket.on("get-online-users", () => {
+    console.log("get-online-users", Array.from(onlineUsers.entries()));
+    io.emit('update-online-users', Array.from(onlineUsers.entries()));
+  });
+
+  socket.on('user-online', (userId) => {
+    console.log('user-online', userId);
+    onlineUsers.set(userId, socket.id);
+    io.emit('update-online-users', Array.from(onlineUsers.entries()));
+  });
+
+  socket.on("start-video-call", (data) => {
+    const { userId, socketId, offer } = data;
+    const area = `${socket.id}-${socketId}`;
+    console.log("start-video-call", data);
+    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer });
+  });
+
+  socket.on("call-accepted", (data) => {
+    const { fromUserId, toSocketId, area, answer } = data;
+    console.log("call-accepted", data);
+    socket.to(toSocketId).emit("call-accepted", { from: socket.id, fromUserId, area, answer });
+    io.sockets.sockets.get(toSocketId)?.join(area);
+    socket.join(area);
+    setTimeout(() => {
+      console.log("just to emit notify");
+      io.to(area).emit("notify", {
+        message: `User ${fromUserId} accepted the call.`,
+        fromSocketId: socket.id,
+        fromUserId,
+        area,
+      });
+    }, 4000);
+  });
+
+  socket.on("peer-nego-needed", (data) => {
+    const { toSocketId, offer } = data;
+    socket.to(toSocketId).emit("peer-nego-needed", { from: socket.id, offer });
+  });
+
+  socket.on("peer-nego-done", (data) => {
+    const { to, answer } = data;
+    socket.to(to).emit("peer-nego-final", { from: socket.id, answer });
+  });
+
+  socket.on("ice-candidate", ({ toSocketId, candidate }) => {
+    io.to(toSocketId).emit("ice-candidate", { candidate });
+  });
+
+  socket.on("user:call", ({ to, offer }) => {
+    io.to(to).emit("incomming:call", { from: socket.id, offer });
+  });
+
+  socket.on("call:accepted", ({ to, ans }) => {
+    io.to(to).emit("call:accepted", { from: socket.id, ans });
+  });
+
+  socket.on("peer:nego:needed", ({ to, offer }) => {
+    console.log("peer:nego:needed", offer);
+    io.to(to).emit("peer:nego:needed", { from: socket.id, offer });
+  });
+
+  socket.on("peer:nego:done", ({ to, ans }) => {
+    console.log("peer:nego:done", ans);
+    io.to(to).emit("peer:nego:final", { from: socket.id, ans });
+  });
+});
 
 app.use(express.json({ limit: '100mb' })); // Increase the JSON body size limit
 app.use(express.urlencoded({ limit: '100mb', extended: true })); // Increase URL-encoded body size limit
@@ -104,6 +200,7 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-app.listen(port, () => {
+// Change app.listen to server.listen
+server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
