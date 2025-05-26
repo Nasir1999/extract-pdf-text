@@ -24,34 +24,36 @@ const socketidToEmailMap = new Map();
 const onlineUsers = new Map();
 
 // Socket.IO connection handling
+// socket.on("room:join", (data) => {
+//   const { email, room } = data;
+//   emailToSocketIdMap.set(email, socket.id);
+//   socketidToEmailMap.set(socket.id, email);
+//   io.to(room).emit("user:joined", { email, id: socket.id });
+//   socket.join(room);
+//   io.to(socket.id).emit("room:join", data);
+// });
 io.on("connection", (socket) => {
   console.log(`Socket Connected`, socket.id);
   
-  socket.on("room:join", (data) => {
-    const { email, room } = data;
-    emailToSocketIdMap.set(email, socket.id);
-    socketidToEmailMap.set(socket.id, email);
-    io.to(room).emit("user:joined", { email, id: socket.id });
-    socket.join(room);
-    io.to(socket.id).emit("room:join", data);
-  });
 
-  socket.on("get-online-users", () => {
-    console.log("get-online-users", Array.from(onlineUsers.entries()));
-    io.emit('update-online-users', Array.from(onlineUsers.entries()));
-  });
+  // socket.on("get-online-users", () => {
+  //   console.log("get-online-users", Array.from(onlineUsers.entries()));
+  //   io.emit('update-online-users', Array.from(onlineUsers.entries()));
+  // });
 
   socket.on('user-online', (userId) => {
-    console.log('user-online', userId);
+    console.log('user-just-online', userId);
     onlineUsers.set(userId, socket.id);
     io.emit('update-online-users', Array.from(onlineUsers.entries()));
+    console.log("online-users",onlineUsers)
   });
 
   socket.on("start-video-call", (data) => {
-    const { userId, socketId, offer } = data;
+    const { userId, socketId, offer,userName } = data;
     const area = `${socket.id}-${socketId}`;
     console.log("start-video-call", data);
-    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer });
+    console.log("current-socket-id",socket.id)
+    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer,userName });
   });
 
   socket.on("call-accepted", (data) => {
@@ -70,6 +72,14 @@ io.on("connection", (socket) => {
       });
     }, 4000);
   });
+
+  socket.on("call-ended", (data) => {
+    const {  to, area } = data;
+    console.log("call-ended", data);
+    socket.to(to).emit("call-ended", { from: socket.id, area });
+    io.sockets.sockets.get(to)?.leave(area);
+    socket.leave(area);
+  })
 
   socket.on("peer-nego-needed", (data) => {
     const { toSocketId, offer } = data;
