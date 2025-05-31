@@ -9,6 +9,7 @@ const http = require("http");
 const { optimize } = require('svgo');
 const axios = require('axios');
 const app = express();
+const { AuthClientTwoLegged, BucketsApi, ObjectsApi, DerivativesApi } = require('forge-apis');
 const server = http.createServer(app);  
 const io = new Server(server, {
   cors: {
@@ -18,7 +19,8 @@ const io = new Server(server, {
 });
 
 const port = 4000;
-
+const FORGE_CLIENT_ID = 'd5HTo88qrMOa1RPlwHl5A9HljG4bSuVsQxIJ2AElArnuMzo4'
+const FORGE_CLIENT_SECRET = 'xmny3vhNTsSBc2rk4HVXyVtMGqzzX7PM7G1ItnWliftbuQUkbLzVBaLJYq5XHx2I'
 // Socket.IO maps and variables
 const emailToSocketIdMap = new Map();
 const socketidToEmailMap = new Map();
@@ -246,5 +248,49 @@ app.post('/convert-and-optimize', async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).send({ error: 'Failed to optimize SVG' });
+  }
+});
+
+
+const client = new AuthClientTwoLegged(
+  process.env.FORGE_CLIENT_ID,
+  process.env.FORGE_CLIENT_SECRET,
+  ['data:read', 'data:write', 'data:create', 'bucket:create', 'viewables:read'],
+  true
+);
+
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    const token = await client.authenticate();
+    const buckets = new BucketsApi();
+    const objects = new ObjectsApi();
+    const derivatives = new DerivativesApi();
+
+    const BUCKET_KEY = `your-bucket-${Date.now()}`.toLowerCase();
+
+    // Create bucket
+    await buckets.createBucket({ bucketKey: BUCKET_KEY, policyKey: 'transient' }, {}, token.credentials);
+
+    // Upload file
+    const fileStream = fs.createReadStream(req.file.path);
+    const object = await objects.uploadObject(BUCKET_KEY, req.file.originalname, req.file.size, fileStream, {}, token.credentials);
+
+    const urn = Buffer.from(object.body.objectId).toString('base64');
+
+    // Start translation to SVF
+    await derivatives.translate(
+      {
+        input: { urn },
+        output: { formats: [{ type: 'svf', views: ['2d', '3d'] }] },
+      },
+      {},
+      token.credentials
+    );
+
+    res.json({ urn });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Upload failed');
   }
 });
