@@ -6,9 +6,10 @@ const pdfParse = require("pdf-parse");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const http = require("http");
-
+const { optimize } = require('svgo');
+const axios = require('axios');
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer(app);  
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -16,7 +17,7 @@ const io = new Server(server, {
   }
 });
 
-const port = 3000;
+const port = 4000;
 
 // Socket.IO maps and variables
 const emailToSocketIdMap = new Map();
@@ -34,7 +35,7 @@ const onlineUsers = new Map();
 // });
 io.on("connection", (socket) => {
   console.log(`Socket Connected`, socket.id);
-  
+
 
   // socket.on("get-online-users", () => {
   //   console.log("get-online-users", Array.from(onlineUsers.entries()));
@@ -45,15 +46,15 @@ io.on("connection", (socket) => {
     console.log('user-just-online', userId);
     onlineUsers.set(userId, socket.id);
     io.emit('update-online-users', Array.from(onlineUsers.entries()));
-    console.log("online-users",onlineUsers)
+    console.log("online-users", onlineUsers)
   });
 
   socket.on("start-video-call", (data) => {
-    const { userId, socketId, offer,userName } = data;
+    const { userId, socketId, offer, userName } = data;
     const area = `${socket.id}-${socketId}`;
     console.log("start-video-call", data);
-    console.log("current-socket-id",socket.id)
-    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer,userName });
+    console.log("current-socket-id", socket.id)
+    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer, userName });
   });
 
   socket.on("call-accepted", (data) => {
@@ -74,7 +75,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("call-ended", (data) => {
-    const {  to, area } = data;
+    const { to, area } = data;
     console.log("call-ended", data);
     socket.to(to).emit("call-ended", { from: socket.id, area });
     io.sockets.sockets.get(to)?.leave(area);
@@ -213,4 +214,37 @@ app.get("/", (req, res) => {
 // Change app.listen to server.listen
 server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
+});
+
+app.post('/convert-and-optimize', async (req, res) => {
+  const { fileUrl } = req.body;
+  console.log("fileUrl", fileUrl);
+  try {
+    // const svgRes = await axios.get(fileUrl);
+    const svgRes = await axios.get(fileUrl, {
+      responseType: 'text'
+  });
+    const originalSvg = svgRes.data;
+    console.log("originalSvg", originalSvg);
+    
+
+    const result = optimize(originalSvg, {
+      multipass: true,
+      plugins: [
+        'removeTitle',
+        'removeDesc',
+        'removeMetadata',
+        'removeComments',
+        'cleanupNumericValues',
+        'convertPathData',
+        'removeDimensions',
+        'collapseGroups',
+      ],
+    });
+
+    return res.send({ optimizedSvg: result.data });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send({ error: 'Failed to optimize SVG' });
+  }
 });
