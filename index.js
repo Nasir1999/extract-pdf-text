@@ -6,6 +6,7 @@ const pdfParse = require("pdf-parse");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const http = require("http");
+const mongoose = require("mongoose");
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,31 @@ const io = new Server(server, {
 });
 
 const port = 3000;
+
+const mongoUri = "mongodb+srv://jbulian:3VS1WUkzqxzyushm@gorillafundercluster.v3levad.mongodb.net/";
+
+// MongoDB connection
+mongoose.connect(mongoUri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// User Schema for Waitlist
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+const ViddeonUser = mongoose.model('Viddeon_Users', userSchema);
 
 // Socket.IO maps and variables
 const emailToSocketIdMap = new Map();
@@ -204,6 +230,74 @@ app.get("/uploaded-audios", (req, res) => {
     }
     res.send(files);
   });
+});
+
+// Waitlist API - Add user to waitlist
+app.post("/waitlist", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email is required" 
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await ViddeonUser.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ 
+        success: false, 
+        message: "User is already registered for the waitlist" 
+      });
+    }
+
+    // Create new user
+    const newUser = new ViddeonUser({
+      email
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ 
+      success: true, 
+      message: "User successfully added to waitlist", 
+      user: {
+        id: newUser._id,
+        email: newUser.email,
+        createdAt: newUser.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error("Error adding user to waitlist:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Internal server error" 
+    });
+  }
+});
+
+// Get all waitlist users
+app.get("/waitlist-users", async (req, res) => {
+  try {
+    const users = await ViddeonUser.find({}).sort({ createdAt: -1 });
+    
+    res.status(200).json({ 
+      success: true, 
+      count: users.length,
+      users: users 
+    });
+
+  } catch (error) {
+    console.error("Error fetching waitlist users:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Internal server error" 
+    });
+  }
 });
 
 app.get("/", (req, res) => {
