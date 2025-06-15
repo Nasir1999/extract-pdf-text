@@ -36,6 +36,10 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  platform: {
+    type: String,
+    required: true
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -235,13 +239,13 @@ app.get("/uploaded-audios", (req, res) => {
 // Waitlist API - Add user to waitlist
 app.post("/waitlist", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, platform } = req.body;
 
     // Validate required fields
-    if (!email) {
+    if (!email || !platform) {
       return res.status(400).json({ 
         success: false, 
-        message: "Email is required" 
+        message: "Email and platform are required" 
       });
     }
 
@@ -256,7 +260,8 @@ app.post("/waitlist", async (req, res) => {
 
     // Create new user
     const newUser = new ViddeonUser({
-      email
+      email,
+      platform
     });
 
     await newUser.save();
@@ -267,6 +272,7 @@ app.post("/waitlist", async (req, res) => {
       user: {
         id: newUser._id,
         email: newUser.email,
+        platform: newUser.platform,
         createdAt: newUser.createdAt
       }
     });
@@ -283,11 +289,17 @@ app.post("/waitlist", async (req, res) => {
 // Get all waitlist users
 app.get("/waitlist-users", async (req, res) => {
   try {
-    const users = await ViddeonUser.find({}).sort({ createdAt: -1 });
+    const { platform } = req.query;
+    
+    // Build query based on platform parameter
+    const query = platform ? { platform } : {};
+    
+    const users = await ViddeonUser.find(query).sort({ createdAt: -1 });
     
     res.status(200).json({ 
       success: true, 
       count: users.length,
+      platform: platform || 'all',
       users: users 
     });
 
