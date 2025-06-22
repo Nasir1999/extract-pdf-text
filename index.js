@@ -26,8 +26,8 @@ mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // User Schema for Waitlist
 const userSchema = new mongoose.Schema({
@@ -64,7 +64,7 @@ const onlineUsers = new Map();
 // });
 io.on("connection", (socket) => {
   console.log(`Socket Connected`, socket.id);
-  
+
 
   // socket.on("get-online-users", () => {
   //   console.log("get-online-users", Array.from(onlineUsers.entries()));
@@ -75,21 +75,29 @@ io.on("connection", (socket) => {
     console.log('user-just-online', userId);
     onlineUsers.set(userId, socket.id);
     io.emit('update-online-users', Array.from(onlineUsers.entries()));
-    console.log("online-users",onlineUsers)
+    console.log("online-users", onlineUsers)
   });
 
   socket.on("start-video-call", (data) => {
-    const { userId, socketId, offer,userName } = data;
+    const { userId, socketId, offer, userName, isVideoCall } = data;
     const area = `${socket.id}-${socketId}`;
     console.log("start-video-call", data);
-    console.log("current-socket-id",socket.id)
-    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer,userName });
+    console.log("current-socket-id", socket.id)
+    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer, userName, isVideoCall });
   });
 
+  socket.on("call-declined", (data) => {
+    const { socketId } = data;
+    console.log("inside call-declined ", socketId);
+    socket.to(socketId).emit("call-declined", {
+      from: socket.id
+    })
+  })
+
   socket.on("call-accepted", (data) => {
-    const { fromUserId, toSocketId, area, answer } = data;
+    const { fromUserId, toSocketId, area, answer, isVideoCall } = data;
     console.log("call-accepted", data);
-    socket.to(toSocketId).emit("call-accepted", { from: socket.id, fromUserId, area, answer });
+    socket.to(toSocketId).emit("call-accepted", { from: socket.id, fromUserId, area, answer, isVideoCall });
     io.sockets.sockets.get(toSocketId)?.join(area);
     socket.join(area);
     setTimeout(() => {
@@ -98,13 +106,15 @@ io.on("connection", (socket) => {
         message: `User ${fromUserId} accepted the call.`,
         fromSocketId: socket.id,
         fromUserId,
+        isVideoCall,
         area,
+        isVideoCall,
       });
     }, 4000);
   });
 
   socket.on("call-ended", (data) => {
-    const {  to, area } = data;
+    const { to, area } = data;
     console.log("call-ended", data);
     socket.to(to).emit("call-ended", { from: socket.id, area });
     io.sockets.sockets.get(to)?.leave(area);
@@ -243,18 +253,18 @@ app.post("/waitlist", async (req, res) => {
 
     // Validate required fields
     if (!email || !platform) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email and platform are required" 
+      return res.status(400).json({
+        success: false,
+        message: "Email and platform are required"
       });
     }
 
     // Check if user already exists
     const existingUser = await ViddeonUser.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ 
-        success: false, 
-        message: "User is already registered for the waitlist" 
+      return res.status(409).json({
+        success: false,
+        message: "User is already registered for the waitlist"
       });
     }
 
@@ -266,9 +276,9 @@ app.post("/waitlist", async (req, res) => {
 
     await newUser.save();
 
-    res.status(201).json({ 
-      success: true, 
-      message: "User successfully added to waitlist", 
+    res.status(201).json({
+      success: true,
+      message: "User successfully added to waitlist",
       user: {
         id: newUser._id,
         email: newUser.email,
@@ -279,9 +289,9 @@ app.post("/waitlist", async (req, res) => {
 
   } catch (error) {
     console.error("Error adding user to waitlist:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Internal server error" 
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
     });
   }
 });
@@ -290,24 +300,24 @@ app.post("/waitlist", async (req, res) => {
 app.get("/waitlist-users", async (req, res) => {
   try {
     const { platform } = req.query;
-    
+
     // Build query based on platform parameter
     const query = platform ? { platform } : {};
-    
+
     const users = await ViddeonUser.find(query).sort({ createdAt: -1 });
-    
-    res.status(200).json({ 
-      success: true, 
+
+    res.status(200).json({
+      success: true,
       count: users.length,
       platform: platform || 'all',
-      users: users 
+      users: users
     });
 
   } catch (error) {
     console.error("Error fetching waitlist users:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Internal server error" 
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
     });
   }
 });
