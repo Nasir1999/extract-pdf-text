@@ -7,7 +7,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const http = require("http");
 const mongoose = require("mongoose");
-
+const { generateToken04 } = require('./zegoServerAssistant');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -320,6 +320,18 @@ app.get("/waitlist-users", async (req, res) => {
       message: "Internal server error"
     });
   }
+});
+
+app.get('/api/token', (req, res) => {
+  const { userID } = req.query;
+  const appID = 1226197121;
+  const serverSecret = '6e8312e53aac1ca1732d531902f01687';
+
+  const effectiveTimeInSeconds = 3600; // 1 hour
+  const payload = '';
+
+  const token = generateToken04(appID, userID, serverSecret, effectiveTimeInSeconds, payload);
+  res.json({ token });
 });
 
 app.get("/", (req, res) => {
