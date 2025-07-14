@@ -222,10 +222,10 @@ app.post("/upload-audio", upload.single("audio"), (req, res) => {
   res.send({ url: `https://helper.screnpla.com/uploads/${file.filename}` });
 });
 
+// .
 app.delete("/delete-audio/:filename", (req, res) => {
   const filename = req.params.filename;
   const filePath = `./uploads/${filename}`;
-
   fileSystem.unlink(filePath, (err) => {
     if (err) {
       console.error("Error deleting file:", err);
