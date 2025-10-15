@@ -71,12 +71,48 @@ io.on("connection", (socket) => {
   //   io.emit('update-online-users', Array.from(onlineUsers.entries()));
   // });
 
-  socket.on('user-online', (userId) => {
-    console.log('user-just-online', userId);
-    onlineUsers.set(userId, socket.id);
-    io.emit('update-online-users', Array.from(onlineUsers.entries()));
-    console.log("online-users", onlineUsers)
+  // socket.on('user-online', (userId) => {
+  //   console.log('user-just-online', userId);
+  //   onlineUsers.set(userId, socket.id);
+  //   io.emit('update-online-users', Array.from(onlineUsers.entries()));
+  //   console.log("online-users", onlineUsers)
+  // });
+  socket.on("user-online", (userId) => {
+    if (!userId) return;
+
+    onlineUsers.set(socket.id, userId); // store by socket.id (not userId)
+
+    console.log(`User ${userId} is online with socket ${socket.id}`);
+
+    // Send updated list of online userIds
+    const uniqueUserIds = [...new Set(onlineUsers.values())];
+    io.emit("update-online-users", uniqueUserIds);
   });
+
+ // Handle disconnect
+  socket.on("disconnect", () => {
+    console.log("inside user-disconnect")
+    const userId = onlineUsers.get(socket.id);
+    onlineUsers.delete(socket.id);
+
+    console.log(`User ${userId} disconnected.`);
+
+    const uniqueUserIds = [...new Set(onlineUsers.values())];
+    io.emit("update-online-users", uniqueUserIds);
+  });
+
+  socket.on("user-offline", (userId) => {
+    console.log("inside user-offline")
+  for (const [sockId, id] of onlineUsers.entries()) {
+    if (id === userId) {
+      onlineUsers.delete(sockId);
+    }
+  }
+  const uniqueUserIds = [...new Set(onlineUsers.values())];
+  io.emit("update-online-users", uniqueUserIds);
+  console.log(`🧹 User ${userId} manually marked offline`);
+});
+
 
   socket.on("start-video-call", (data) => {
     const { userId, socketId, offer, userName, isVideoCall } = data;
