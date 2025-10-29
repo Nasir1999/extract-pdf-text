@@ -360,8 +360,8 @@ app.get("/waitlist-users", async (req, res) => {
 
 app.get('/api/token', (req, res) => {
   const { userID } = req.query;
-  const appID = 552702739;
-  const serverSecret = 'e1a935fedd8b938e82464a75ec31ce47';
+  const appID = 1225306351;
+  const serverSecret = '8f8c614b1bfc23500544f1b09bc5a633';
 
   const effectiveTimeInSeconds = 3600; // 1 hour
   const payload = '';
