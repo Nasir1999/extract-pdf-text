@@ -7,46 +7,48 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const http = require("http");
 const mongoose = require("mongoose");
-const { generateToken04 } = require('./zegoServerAssistant');
+const { generateToken04 } = require("./zegoServerAssistant");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
 const port = 3000;
 
-const mongoUri = "mongodb+srv://jbulian:3VS1WUkzqxzyushm@gorillafundercluster.v3levad.mongodb.net/";
+const mongoUri =
+  "mongodb+srv://jbulian:3VS1WUkzqxzyushm@gorillafundercluster.v3levad.mongodb.net/";
 
 // MongoDB connection
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+mongoose
+  .connect(mongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 // User Schema for Waitlist
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
   platform: {
     type: String,
-    required: true
+    required: true,
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
-const ViddeonUser = mongoose.model('Viddeon_Users', userSchema);
+const ViddeonUser = mongoose.model("Viddeon_Users", userSchema);
 
 // Socket.IO maps and variables
 const emailToSocketIdMap = new Map();
@@ -64,7 +66,6 @@ const onlineUsers = new Map();
 // });
 io.on("connection", (socket) => {
   console.log(`Socket Connected`, socket.id);
-
 
   // socket.on("get-online-users", () => {
   //   console.log("get-online-users", Array.from(onlineUsers.entries()));
@@ -89,9 +90,9 @@ io.on("connection", (socket) => {
     io.emit("update-online-users", uniqueUserIds);
   });
 
- // Handle disconnect
+  // Handle disconnect
   socket.on("disconnect", () => {
-    console.log("inside user-disconnect")
+    console.log("inside user-disconnect");
     const userId = onlineUsers.get(socket.id);
     onlineUsers.delete(socket.id);
 
@@ -102,38 +103,50 @@ io.on("connection", (socket) => {
   });
 
   socket.on("user-offline", (userId) => {
-    console.log("inside user-offline")
-  for (const [sockId, id] of onlineUsers.entries()) {
-    if (id === userId) {
-      onlineUsers.delete(sockId);
+    console.log("inside user-offline");
+    for (const [sockId, id] of onlineUsers.entries()) {
+      if (id === userId) {
+        onlineUsers.delete(sockId);
+      }
     }
-  }
-  const uniqueUserIds = [...new Set(onlineUsers.values())];
-  io.emit("update-online-users", uniqueUserIds);
-  console.log(`🧹 User ${userId} manually marked offline`);
-});
-
+    const uniqueUserIds = [...new Set(onlineUsers.values())];
+    io.emit("update-online-users", uniqueUserIds);
+    console.log(`🧹 User ${userId} manually marked offline`);
+  });
 
   socket.on("start-video-call", (data) => {
     const { userId, socketId, offer, userName, isVideoCall } = data;
     const area = `${socket.id}-${socketId}`;
     console.log("start-video-call", data);
-    console.log("current-socket-id", socket.id)
-    socket.to(socketId).emit("incomming-call", { from: socket.id, userId, area, offer, userName, isVideoCall });
+    console.log("current-socket-id", socket.id);
+    socket.to(socketId).emit("incomming-call", {
+      from: socket.id,
+      userId,
+      area,
+      offer,
+      userName,
+      isVideoCall,
+    });
   });
 
   socket.on("call-declined", (data) => {
     const { socketId } = data;
     console.log("inside call-declined ", socketId);
     socket.to(socketId).emit("call-declined", {
-      from: socket.id
-    })
-  })
+      from: socket.id,
+    });
+  });
 
   socket.on("call-accepted", (data) => {
     const { fromUserId, toSocketId, area, answer, isVideoCall } = data;
     console.log("call-accepted", data);
-    socket.to(toSocketId).emit("call-accepted", { from: socket.id, fromUserId, area, answer, isVideoCall });
+    socket.to(toSocketId).emit("call-accepted", {
+      from: socket.id,
+      fromUserId,
+      area,
+      answer,
+      isVideoCall,
+    });
     io.sockets.sockets.get(toSocketId)?.join(area);
     socket.join(area);
     setTimeout(() => {
@@ -155,7 +168,7 @@ io.on("connection", (socket) => {
     socket.to(to).emit("call-ended", { from: socket.id, area });
     io.sockets.sockets.get(to)?.leave(area);
     socket.leave(area);
-  })
+  });
 
   socket.on("peer-nego-needed", (data) => {
     const { toSocketId, offer } = data;
@@ -190,12 +203,12 @@ io.on("connection", (socket) => {
   });
 });
 
-app.use(express.json({ limit: '100mb' })); // Increase the JSON body size limit
-app.use(express.urlencoded({ limit: '100mb', extended: true })); // Increase URL-encoded body size limit
+app.use(express.json({ limit: "100mb" })); // Increase the JSON body size limit
+app.use(express.urlencoded({ limit: "100mb", extended: true })); // Increase URL-encoded body size limit
 app.use(cors());
 
 // Serve the 'uploads' directory as static files
-app.use('/uploads', express.static('uploads'));
+app.use("/uploads", express.static("uploads"));
 
 // Set up storage for file uploads
 const storage = multer.diskStorage({
@@ -210,7 +223,7 @@ const storage = multer.diskStorage({
 // Increase the file size limit for multer
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // Set file size limit to 100MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // Set file size limit to 100MB
 });
 
 app.post("/extract-text", upload.single("file"), async (req, res) => {
@@ -291,7 +304,7 @@ app.post("/waitlist", async (req, res) => {
     if (!email || !platform) {
       return res.status(400).json({
         success: false,
-        message: "Email and platform are required"
+        message: "Email and platform are required",
       });
     }
 
@@ -300,14 +313,14 @@ app.post("/waitlist", async (req, res) => {
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: "User is already registered for the waitlist"
+        message: "User is already registered for the waitlist",
       });
     }
 
     // Create new user
     const newUser = new ViddeonUser({
       email,
-      platform
+      platform,
     });
 
     await newUser.save();
@@ -319,15 +332,14 @@ app.post("/waitlist", async (req, res) => {
         id: newUser._id,
         email: newUser.email,
         platform: newUser.platform,
-        createdAt: newUser.createdAt
-      }
+        createdAt: newUser.createdAt,
+      },
     });
-
   } catch (error) {
     console.error("Error adding user to waitlist:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error"
+      message: "Internal server error",
     });
   }
 });
@@ -345,28 +357,33 @@ app.get("/waitlist-users", async (req, res) => {
     res.status(200).json({
       success: true,
       count: users.length,
-      platform: platform || 'all',
-      users: users
+      platform: platform || "all",
+      users: users,
     });
-
   } catch (error) {
     console.error("Error fetching waitlist users:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error"
+      message: "Internal server error",
     });
   }
 });
 
-app.get('/api/token', (req, res) => {
+app.get("/api/token", (req, res) => {
   const { userID } = req.query;
-  const appID = 1225306351;
-  const serverSecret = '8f8c614b1bfc23500544f1b09bc5a633';
+  const appID = 1743965962;
+  const serverSecret = "7f506f5d95918658fed69cfe715b5f29";
 
   const effectiveTimeInSeconds = 3600; // 1 hour
-  const payload = '';
+  const payload = "";
 
-  const token = generateToken04(appID, userID, serverSecret, effectiveTimeInSeconds, payload);
+  const token = generateToken04(
+    appID,
+    userID,
+    serverSecret,
+    effectiveTimeInSeconds,
+    payload
+  );
   res.json({ token });
 });
 
